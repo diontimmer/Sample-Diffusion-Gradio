@@ -15,7 +15,7 @@ from dance_diffusion.api import RequestHandler, Request, RequestType, SamplerTyp
 # ****************************************************************************
 
 max_audioboxes = 100
-modelfolder = 'models'
+modelfolder = 'D:/DevWkspc/sample-diffusion-gui/models'
 
 
 
@@ -43,7 +43,7 @@ def save_audio(audio_out, output_path: str, sample_rate, id_str:str = None):
 
 
 def load_models():
-    return [f for f in os.listdir('models') if os.path.isfile(os.path.join('models', f)) and f.endswith('.ckpt')]
+    return [f for f in os.listdir(modelfolder) if os.path.isfile(os.path.join(modelfolder, f)) and f.endswith('.ckpt')]
 
 
 def make_audio_outputs(amount):
@@ -184,4 +184,8 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    if os.path.exists(modelfolder) and len(os.listdir(modelfolder)) > 0:
+        main()
+    else:
+        input('ERROR: Please place a model in the models folder or change the models path in the script file!')
+        exit()

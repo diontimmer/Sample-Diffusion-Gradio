@@ -68,7 +68,7 @@ def run_pip(args, desc=None):
 
 SKIP_INSTALL = False
 
-torch_command = "pip install torch==1.13.1+cu117 --extra-index-url https://download.pytorch.org/whl/cu117"
+torch_command = "pip install torch==1.13.1+cu117 torchaudio --extra-index-url https://download.pytorch.org/whl/cu117"
 main_script_path = "app"
 pre_torch_packages = []
 post_torch_packages = [
