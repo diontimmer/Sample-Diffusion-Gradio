@@ -1,6 +1,7 @@
 # Sample Diffusion Gradio
  Gradio client for Harmonai sample diffusion.<br>
- Install using the included start scripts, requires Python to be installed.<br>
+ Only tested on Windows so far.<br>
+ Install using the included ```start_windows.bat``` for Windows or ```start_unix.sh``` for Mac/Linux, requires Python to be installed.<br>
  Create a ```models``` folder and copy your dance diffusion/sample generator .ckpts to this folder, or set your custom model folder in app.py.<br>
  The interface will not boot without a set model. <br>
  
