@@ -15,7 +15,7 @@ from dance_diffusion.api import RequestHandler, Request, RequestType, SamplerTyp
 # ****************************************************************************
 
 max_audioboxes = 100
-modelfolder = 'D:/DevWkspc/sample-diffusion-gui/models'
+modelfolder = 'models'
 
 
 
@@ -27,14 +27,12 @@ modelfolder = 'D:/DevWkspc/sample-diffusion-gui/models'
 
 def save_audio(audio_out, output_path: str, sample_rate, id_str:str = None):
     files=[]
-
     if not os.path.exists(output_path):
         os.makedirs(output_path)
     
     for ix, sample in enumerate(audio_out):
         output_file = os.path.join(output_path, f"sample_{id_str}_{ix + 1}.wav" if(id_str!=None) else f"sample_{ix + 1}.wav")
         open(output_file, "a").close()
-        
         output = sample.cpu()
 
         torchaudio.save(output_file, output, int(sample_rate))
@@ -50,15 +48,48 @@ def load_models():
               list_of_files.append( os.sep.join([dirpath.replace(modelfolder,''), filename])[1:])
     return list_of_files
 
+
+def refresh_all_models(*inputs):
+        models = load_models()
+        selected = models[0]
+        return gr.Dropdown.update(value=selected, choices=models)
+
 def make_audio_outputs(amount):
     audio_outputs = []
     for i in range(amount):
         audio_outputs.append(gr.components.Audio(label=f'Batch #{i+1}'))
     return audio_outputs
 
-def variable_outputs(k):
-    k = int(k)
-    return [gr.Audio.update(visible=True)]*k + [gr.Audio.update(visible=False)]*(max_audioboxes-k)
+def variable_outputs(output_amt, mode, interp_amount):
+    output_amt = int(output_amt) if (mode != 'Interpolation') else int(output_amt) * int(interp_amount)
+
+    return [gr.Audio.update(visible=True)]*output_amt + [gr.Audio.update(visible=False)]*(max_audioboxes-output_amt)
+
+refresh_symbol = '\U0001f504'
+
+class ToolButton(gr.Button, gr.components.FormComponent):
+    """Small button with single emoji as text, fits inside gradio forms"""
+
+    def __init__(self, **kwargs):
+        super().__init__(variant="tool", **kwargs)
+
+    def get_block_name(self):
+        return "button"
+
+class ToolButtonTop(gr.Button, gr.components.FormComponent):
+    """Small button with single emoji as text, with extra margin at top, fits inside gradio forms"""
+
+    def __init__(self, **kwargs):
+        super().__init__(variant="tool-top", **kwargs)
+
+    def get_block_name(self):
+        return "button"
+
+class FormRow(gr.Row, gr.components.FormComponent):
+    """Same as gr.Row but fits inside gradio forms"""
+
+    def get_block_name(self):
+        return "row"
 
 # ****************************************************************************
 # *                                 Generate                                 *
@@ -73,6 +104,9 @@ def generate_audio(batch_size, model, mode,use_autocast, use_autocrop, device_ac
     model_type = ModelType.DD
     sampler_type = SamplerType[sampler]
     scheduler_type = SchedulerType[schedule]
+    audio_source = audio_source.name if(audio_source != None) else None
+    audio_target = audio_target.name if(audio_target != None) else None
+    mask = mask.name if(mask != None) else None
 
     # load model
     modelpath = f'{modelfolder}/{model}'
@@ -83,7 +117,7 @@ def generate_audio(batch_size, model, mode,use_autocast, use_autocrop, device_ac
 
     request_handler = RequestHandler(device_accelerator, device_offload, optimize_memory_use=False, use_autocast=use_autocast)
     seed = int(seed) if(seed!=-1) else torch.randint(0, 4294967294, [1], device=device_type_accelerator).item()
-    autocrop = cropper(chunk_size, True) if(use_autocrop==True) else lambda audio: audio
+    autocrop = cropper(int(chunk_size), True) if(use_autocrop==True) else lambda audio: audio
 
     # make request
     request = Request(
@@ -96,8 +130,8 @@ def generate_audio(batch_size, model, mode,use_autocast, use_autocrop, device_ac
         seed=int(seed),
         batch_size=int(batch_size),
         
-        audio_source=autocrop(load_audio(device_accelerator,audio_source, sample_rate)) if(audio_source != None) else None,
-        audio_target=autocrop(load_audio(device_accelerator,audio_target, sample_rate)) if(audio_target != None) else None,
+        audio_source=autocrop(load_audio(device_accelerator,audio_source, int(sample_rate))) if(audio_source != None) else None,
+        audio_target=autocrop(load_audio(device_accelerator,audio_target, int(sample_rate))) if(audio_target != None) else None,
         mask=torch.load(mask) if(mask != None) else None,
         
         noise_level=noise_level,
@@ -116,8 +150,6 @@ def generate_audio(batch_size, model, mode,use_autocast, use_autocrop, device_ac
 
     # process request
     response = request_handler.process_request(request)
-
-    # save audio
     outputs = save_audio((0.5 * response.result).clamp(-1,1) if(tame == True) else response.result, f"Output/{ModelType.DD.__str__()}/{mode.__str__()}/", sample_rate, f"{seed}")
     outputs += ['data/dummy.mp3'] * (max_audioboxes - len(outputs))
     return outputs
@@ -130,17 +162,21 @@ def generate_audio(batch_size, model, mode,use_autocast, use_autocrop, device_ac
 
 
 def main():
-    with gr.Blocks() as dd_ui:
+    with gr.Blocks(title='Sample Diffusion') as dd_ui:
         with gr.Row():
             with gr.Column():
-                gr.Markdown("Sample Generator")
-                generate_btn = gr.Button(label="Generate")
-                with gr.Tab('General Settings'):
-                    models = load_models()
+                gr.Markdown("Sample Diffusion")
+                models = load_models()
+                with gr.Column(variant='panel'):
                     currmodel_comp = gr.components.Dropdown(models, label="Model Checkpoint", value=models[0])
+                    # refresh_models = gr.Button(value=refresh_symbol, variant='tool')
+                    # refresh_models.style(full_width=False)
+                    # refresh_models.click(refresh_all_models, currmodel_comp, currmodel_comp)
+                    mode_comp = gr.components.Radio(RequestType._member_names_, label="Mode of Operation", value="Generation")
+                    generate_btn = gr.Button(value='Generate Samples', label="Generate", variant='primary')
+                with gr.Tab('General Settings'):
                     batch_size_comp = gr.components.Slider(label="Batch Size", value=1, maximum=max_audioboxes, minimum=1, step=1)
                     gen_components = [
-                        gr.components.Radio(RequestType._member_names_, label="Mode of Operation", value="Generation"),
                         gr.components.Checkbox(label="Use Autocast", value=True),
                         gr.components.Checkbox(label="Use Autocrop", value=True),
                         gr.components.Radio(["cpu", "cuda"], label="Device Accelerator", value="cuda"),
@@ -151,24 +187,22 @@ def main():
                         gr.components.Checkbox(label="Tame", value=True)
                         ]
                 with gr.Tab('Variation/Interpolation Settings'):
-                    with gr.Row():
+                    with gr.Row(variant='panel'):
                         path_components = [
                             gr.File(label="Audio Source Path", interactive=True, file_count="single", file_types=[".mp3", ".wav", ".flac"], elem_id="audio_source_path_file"),
                             gr.File(label="Audio Target Path", interactive=True, file_count="single", file_types=[".mp3", ".wav", ".flac"], elem_id="audio_target_path_file"),
                             gr.File(label="Audio Mask Path", interactive=True, file_count="single", file_types=[".mp3", ".wav", ".flac"], elem_id="audio_mask_path_file"),
                         ]
-                    add_components = [
-                        #variation/interp settings
-                        gr.components.Slider(label="Noise Level", value=0.7, maximum=1, minimum=0),
-                        gr.components.Number(label="Interpolations Linear", value=None),
-                        gr.components.Textbox(label="Interpolation Positions (comma-separated)", value=None),
-                        gr.components.Slider(label="Resampling Steps", value=4, maximum=50, minimum=1),
-                        gr.components.Checkbox(label="Keep Start of Audio", value=True),
-                        ]
+                    noise_level_comp = gr.components.Slider(label="Noise Level", value=0.7, maximum=1, minimum=0)
+                    interpolations_comp = gr.components.Number(label="Interpolations Linear", value=3)
+                    interpolations_pos_comp =  gr.components.Textbox(label="Interpolation Positions (comma-separated)", value=None)
+                    resamples_comp = gr.components.Slider(label="Resampling Steps", value=4, maximum=50, minimum=1)
+                    keep_start_comp = gr.components.Checkbox(label="Keep Start of Audio", value=True)
+                    add_components = [noise_level_comp, interpolations_comp, interpolations_pos_comp, resamples_comp, keep_start_comp]
                 with gr.Tab('Sampler Settings'):  
                         sampler_components = [  
                         #extra settings
-                        gr.components.Slider(label="Steps", value=50, maximum=100, minimum=10),
+                        gr.components.Slider(label="Steps", value=50, maximum=250, minimum=10),
                         gr.components.Radio(SamplerType._member_names_, label="Sampler", value="IPLMS"),
                         gr.components.Radio(SchedulerType._member_names_, label="Schedule", value="CrashSchedule"),
                         ]
@@ -176,13 +210,13 @@ def main():
                 audioboxes = []
                 gr.Markdown("Output")
                 for i in range(max_audioboxes):
-                        t = gr.components.Audio(label=f"Batch #{i+1}", visible=False)
+                        t = gr.components.Audio(label=f"Output #{i+1}", visible=False)
                         audioboxes.append(t)
 
 
 
-        generate_btn.click(fn=variable_outputs, inputs=batch_size_comp, outputs=audioboxes)
-        generate_btn.click(fn=generate_audio, inputs=[batch_size_comp] + [currmodel_comp] + gen_components + path_components + add_components + sampler_components, outputs=audioboxes)
+        generate_btn.click(fn=variable_outputs, inputs=[batch_size_comp, mode_comp, interpolations_comp], outputs=audioboxes)
+        generate_btn.click(fn=generate_audio, inputs=[batch_size_comp] + [currmodel_comp] + [mode_comp] + gen_components + path_components + add_components + sampler_components, outputs=audioboxes)
         dd_ui.queue()
         dd_ui.launch()
 
