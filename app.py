@@ -43,8 +43,12 @@ def save_audio(audio_out, output_path: str, sample_rate, id_str:str = None):
 
 
 def load_models():
-    return [f for f in os.listdir(modelfolder) if os.path.isfile(os.path.join(modelfolder, f)) and f.endswith('.ckpt')]
-
+    list_of_files = []
+    for (dirpath, dirnames, filenames) in os.walk(modelfolder):
+        for filename in filenames:
+            if filename.endswith('.ckpt'): 
+              list_of_files.append( os.sep.join([dirpath.replace(modelfolder,''), filename])[1:])
+    return list_of_files
 
 def make_audio_outputs(amount):
     audio_outputs = []
