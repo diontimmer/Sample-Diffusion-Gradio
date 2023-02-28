@@ -15,9 +15,7 @@ from dance_diffusion.api import RequestHandler, Request, RequestType, SamplerTyp
 # ****************************************************************************
 
 max_audioboxes = 100
-modelfolder = 'models'
-
-
+modelfolder = 'models' if ( os.getenv('SDGFOLDER') is None ) else os.getenv('SDGFOLDER')
 
 # ****************************************************************************
 # *                                  Helpers                                 *
