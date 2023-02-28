@@ -15,9 +15,7 @@ from dance_diffusion.api import RequestHandler, Request, RequestType, SamplerTyp
 # ****************************************************************************
 
 max_audioboxes = 100
-modelfolder = 'models'
-
-
+modelfolder = 'models' if ( os.getenv('SDGFOLDER') is None ) else os.getenv('SDGFOLDER')
 
 # ****************************************************************************
 # *                                  Helpers                                 *
@@ -218,7 +216,7 @@ def main():
         generate_btn.click(fn=variable_outputs, inputs=[batch_size_comp, mode_comp, interpolations_comp], outputs=audioboxes)
         generate_btn.click(fn=generate_audio, inputs=[batch_size_comp] + [currmodel_comp] + [mode_comp] + gen_components + path_components + add_components + sampler_components, outputs=audioboxes)
         dd_ui.queue()
-        dd_ui.launch()
+        dd_ui.launch(share=True)
 
 
 if __name__ == "__main__":
