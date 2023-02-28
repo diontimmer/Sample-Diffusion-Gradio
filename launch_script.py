@@ -8,7 +8,7 @@ import sys
 # *                                   UTIL                                   *
 # ****************************************************************************
 
-python = sys.executable if ( os.getenv('SDGPYTHON') is None ) else os.getenv('SDGPYTHON')
+python = sys.executable if os.getenv('SDGPYTHON') is None else os.getenv('SDGPYTHON')
 
 def prRed(skk): print(f"\033[91m{skk}\033[00m") 
 def prGreen(skk): print(f"\033[92m{skk}\033[00m")
@@ -59,8 +59,6 @@ def run_pip(args, desc=None):
 
 
 
-
-
 # ****************************************************************************
 # *                                  CONFIG                                  *
 # ****************************************************************************
@@ -77,7 +75,6 @@ post_torch_packages = [
                         'diffusers',  
                         'tqdm',
                         ]
-
 
 aliases = {
     "PySoundFile": 'soundfile'
