@@ -8,8 +8,7 @@ import sys
 # *                                   UTIL                                   *
 # ****************************************************************************
 
-python = '/content/miniconda/envs/venv/bin/python3'
-#python = sys.executable
+python = sys.executable if ( os.getenv('SDGPYTHON') is None ) else os.getenv('SDGPYTHON')
 
 def prRed(skk): print(f"\033[91m{skk}\033[00m") 
 def prGreen(skk): print(f"\033[92m{skk}\033[00m")
