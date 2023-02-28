@@ -8,8 +8,8 @@ import sys
 # *                                   UTIL                                   *
 # ****************************************************************************
 
-python = sys.executable
-
+python = '/content/miniconda/envs/venv/bin/python3'
+#python = sys.executable
 
 def prRed(skk): print(f"\033[91m{skk}\033[00m") 
 def prGreen(skk): print(f"\033[92m{skk}\033[00m")
@@ -56,7 +56,7 @@ def is_installed(package):
 def run_pip(args, desc=None):
     index_url = os.environ.get('INDEX_URL', "")
     index_url_line = f' --index-url {index_url}' if index_url != '' else ''
-    return run(f'"{sys.executable}" -m pip {args} --prefer-binary{index_url_line}', desc=f"Installing {desc}", errdesc=f"Couldn't install {desc}")
+    return run(f'"{python}" -m pip {args} --prefer-binary{index_url_line}', desc=f"Installing {desc}", errdesc=f"Couldn't install {desc}")
 
 
 
@@ -101,7 +101,7 @@ if __name__ == "__main__":
 
         # TORCH INSTALL
         if not is_installed("torch") and torch_command is not None:
-            run(f'"{sys.executable}" -m {torch_command}', "Installing torch.", "Couldn't install torch", live=True)
+            run(f'"{python}" -m {torch_command}', "Installing torch.", "Couldn't install torch", live=True)
         
         # post torch packages
         if post_torch_packages:
@@ -113,4 +113,4 @@ if __name__ == "__main__":
             run(f'git clone https://github.com/sudosilico/sample-diffusion sample_diffusion', "Cloning sample-diffusion repo.", "Couldn't clone sample-diffusion repo", live=True)
 
     # LAUNCH
-    run(f'"{sys.executable}" -m {main_script_path}', "Starting main script..", "Couldn't start main script!", live=True)
+    run(f'"{python}" -m {main_script_path}', "Starting main script..", "Couldn't start main script!", live=True)
