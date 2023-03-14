@@ -4,7 +4,7 @@ import torch, torchaudio
 import gc
 
 sys.path.append('sample_diffusion')
-from util.util import load_audio, cropper
+from util.util import load_audio, crop_audio
 from util.platform import get_torch_device_type
 from dance_diffusion.api import RequestHandler, Request, RequestType, SamplerType, SchedulerType, ModelType
 
@@ -93,7 +93,7 @@ class FormRow(gr.Row, gr.components.FormComponent):
 # *                                 Generate                                 *
 # ****************************************************************************
 
-def generate_audio(batch_size, model, mode,use_autocast, use_autocrop, device_accelerator, device_offload,  sample_rate, chunk_size, seed, tame,audio_source, audio_target, mask, noise_level, interpolations_linear, interpolations, resamples, keep_start, steps, sampler, schedule, progress=gr.Progress(track_tqdm=True)
+def generate_audio(batch_size, model, mode,use_autocast, crop_offset, device_accelerator, device_offload,  sample_rate, chunk_size, seed, tame,audio_source, audio_target, mask, noise_level, interpolations_linear, interpolations, resamples, keep_start, steps, sampler, schedule, progress=gr.Progress(track_tqdm=True)
     ):
     # casting
     gc.collect()
@@ -105,6 +105,7 @@ def generate_audio(batch_size, model, mode,use_autocast, use_autocrop, device_ac
     audio_source = audio_source.name if(audio_source != None) else None
     audio_target = audio_target.name if(audio_target != None) else None
     mask = mask.name if(mask != None) else None
+    crop_offset = int(crop_offset)
 
     # load model
     modelpath = f'{modelfolder}/{model}'
@@ -115,7 +116,9 @@ def generate_audio(batch_size, model, mode,use_autocast, use_autocrop, device_ac
 
     request_handler = RequestHandler(device_accelerator, device_offload, optimize_memory_use=False, use_autocast=use_autocast)
     seed = int(seed) if(seed!=-1) else torch.randint(0, 4294967294, [1], device=device_type_accelerator).item()
-    autocrop = cropper(int(chunk_size), True) if(use_autocrop==True) else lambda audio: audio
+    
+    crop = lambda audio: crop_audio(audio, chunk_size, crop_offset) if crop_offset is not None else audio
+    load_input = lambda source: crop(load_audio(device_accelerator, source, sample_rate)) if source is not None else None
 
     # make request
     request = Request(
@@ -127,9 +130,8 @@ def generate_audio(batch_size, model, mode,use_autocast, use_autocrop, device_ac
         
         seed=int(seed),
         batch_size=int(batch_size),
-        
-        audio_source=autocrop(load_audio(device_accelerator,audio_source, int(sample_rate))) if(audio_source != None) else None,
-        audio_target=autocrop(load_audio(device_accelerator,audio_target, int(sample_rate))) if(audio_target != None) else None,
+        audio_source=load_input(audio_source),
+        audio_target=load_input(audio_target),        
         mask=torch.load(mask) if(mask != None) else None,
         
         noise_level=noise_level,
@@ -176,7 +178,7 @@ def main():
                     batch_size_comp = gr.components.Slider(label="Batch Size", value=1, maximum=max_audioboxes, minimum=1, step=1)
                     gen_components = [
                         gr.components.Checkbox(label="Use Autocast", value=True),
-                        gr.components.Checkbox(label="Use Autocrop", value=True),
+                        gr.components.Number(label="Crop Offset", value=0),
                         gr.components.Radio(["cpu", "cuda"], label="Device Accelerator", value="cuda"),
                         gr.components.Radio(["cpu", "cuda"], label="Device Offload", value="cuda"),
                         gr.components.Number(label="Sample Rate", value=48000),
