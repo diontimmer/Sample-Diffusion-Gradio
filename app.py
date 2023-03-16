@@ -191,8 +191,8 @@ def main():
                     gen_components = [
                         gr.components.Checkbox(label="Use Autocast", value=True),
                         gr.components.Number(label="Crop Offset", value=0),
-                        gr.components.Radio(device_list, label="Device Accelerator", value=device_str),
-                        gr.components.Radio(device_list, label="Device Offload", value=device_str),
+                        gr.components.Radio(device_list, label="Device Accelerator", value=recc_device),
+                        gr.components.Radio(device_list, label="Device Offload", value=recc_device),
                         gr.components.Number(label="Sample Rate", value=48000),
                         gr.components.Number(label="Chunk Size", value=65536),
                         gr.components.Number(label="Seed", value=-1),
