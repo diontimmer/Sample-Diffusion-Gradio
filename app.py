@@ -22,6 +22,16 @@ modelfolder = 'models' if ( os.getenv('SDGFOLDER') is None ) else os.getenv('SDG
 # ****************************************************************************
 
 
+def get_recc_device(gpu_str=''):
+    "source: github.com/drscotthawley/aeiou.core: utility to suggest which pytorch device to use"
+    device_str = 'cpu'
+    if torch.cuda.is_available():
+        device_str = 'cuda' if gpu_str=='' else f'cuda:{gpu_str}'
+    elif hasattr(torch.backends, 'mps') and torch.backends.mps.is_available(): # must check for mps attr if using older pytorch
+        device_str = 'mps'
+        os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'
+    return device_str
+
 
 def save_audio(audio_out, output_path: str, sample_rate, id_str:str = None):
     files=[]
@@ -97,7 +107,7 @@ def generate_audio(batch_size, model, mode,use_autocast, crop_offset, device_acc
     ):
     # casting
     gc.collect()
-    torch.cuda.empty_cache()
+    if torch.cuda.is_available(): torch.cuda.empty_cache()
     request_type = RequestType[mode]
     model_type = ModelType.DD
     sampler_type = SamplerType[sampler]
@@ -162,6 +172,8 @@ def generate_audio(batch_size, model, mode,use_autocast, crop_offset, device_acc
 
 
 def main():
+    recc_device = get_recc_device()
+    device_list = list(set(["cpu",recc_device]))
     with gr.Blocks(title='Sample Diffusion') as dd_ui:
         with gr.Row():
             with gr.Column():
@@ -179,8 +191,8 @@ def main():
                     gen_components = [
                         gr.components.Checkbox(label="Use Autocast", value=True),
                         gr.components.Number(label="Crop Offset", value=0),
-                        gr.components.Radio(["cpu", "cuda"], label="Device Accelerator", value="cuda"),
-                        gr.components.Radio(["cpu", "cuda"], label="Device Offload", value="cuda"),
+                        gr.components.Radio(device_list, label="Device Accelerator", value=device_str),
+                        gr.components.Radio(device_list, label="Device Offload", value=device_str),
                         gr.components.Number(label="Sample Rate", value=48000),
                         gr.components.Number(label="Chunk Size", value=65536),
                         gr.components.Number(label="Seed", value=-1),
