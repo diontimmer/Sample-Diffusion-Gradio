@@ -9,6 +9,7 @@ import sys
 # ****************************************************************************
 
 python = sys.executable if os.getenv('SDGPYTHON') is None else os.getenv('SDGPYTHON')
+platform = sys.platform
 
 def prRed(skk): print(f"\033[91m{skk}\033[00m") 
 def prGreen(skk): print(f"\033[92m{skk}\033[00m")
@@ -65,7 +66,7 @@ def run_pip(args, desc=None):
 
 SKIP_INSTALL = False
 
-torch_command = "pip install torch==1.13.1+cu117 torchaudio --extra-index-url https://download.pytorch.org/whl/cu117"
+torch_command = "pip install torch==1.13.1+cu117 torchaudio --extra-index-url https://download.pytorch.org/whl/cu117" if platform != 'win32' else 'pip install torch torchaudio'
 main_script_path = "app"
 pre_torch_packages = []
 post_torch_packages = [
