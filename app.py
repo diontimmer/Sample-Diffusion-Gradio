@@ -4,9 +4,11 @@ import torch, torchaudio
 import gc
 
 sys.path.append('sample_diffusion')
-from util.util import load_audio, crop_audio
+from util.util import load_audio, cropper
 from util.platform import get_torch_device_type
-from dance_diffusion.api import RequestHandler, Request, RequestType, SamplerType, SchedulerType, ModelType
+from dance_diffusion.api import RequestHandler, Request, RequestType, ModelType
+from diffusion_library.sampler import SamplerType
+from diffusion_library.scheduler import SchedulerType
 
 
 
@@ -16,6 +18,9 @@ from dance_diffusion.api import RequestHandler, Request, RequestType, SamplerTyp
 
 max_audioboxes = 100
 modelfolder = 'models' if ( os.getenv('SDGFOLDER') is None ) else os.getenv('SDGFOLDER')
+
+if torch.cuda.is_available():
+    print("Using CUDA")
 
 # ****************************************************************************
 # *                                  Helpers                                 *
@@ -103,7 +108,7 @@ class FormRow(gr.Row, gr.components.FormComponent):
 # *                                 Generate                                 *
 # ****************************************************************************
 
-def generate_audio(batch_size, model, mode,use_autocast, crop_offset, device_accelerator, device_offload,  sample_rate, chunk_size, seed, tame,audio_source, audio_target, mask, noise_level, interpolations_linear, interpolations, resamples, keep_start, steps, sampler, schedule, progress=gr.Progress(track_tqdm=True)
+def generate_audio(batch_size, model, mode,use_autocast, use_autocrop, device_accelerator, device_offload,  sample_rate, chunk_size, seed, tame,audio_source, audio_target, mask, noise_level, interpolations_linear, interpolations, resamples, keep_start, steps, sigma_max, sigma_min, rho, sampler, schedule, progress=gr.Progress(track_tqdm=True)
     ):
     # casting
     gc.collect()
@@ -115,7 +120,6 @@ def generate_audio(batch_size, model, mode,use_autocast, crop_offset, device_acc
     audio_source = audio_source.name if(audio_source != None) else None
     audio_target = audio_target.name if(audio_target != None) else None
     mask = mask.name if(mask != None) else None
-    crop_offset = int(crop_offset)
 
     # load model
     modelpath = f'{modelfolder}/{model}'
@@ -127,8 +131,7 @@ def generate_audio(batch_size, model, mode,use_autocast, crop_offset, device_acc
     request_handler = RequestHandler(device_accelerator, device_offload, optimize_memory_use=False, use_autocast=use_autocast)
     seed = int(seed) if(seed!=-1) else torch.randint(0, 4294967294, [1], device=device_type_accelerator).item()
     
-    crop = lambda audio: crop_audio(audio, chunk_size, crop_offset) if crop_offset is not None else audio
-    load_input = lambda source: crop(load_audio(device_accelerator, source, sample_rate)) if source is not None else None
+    autocrop = cropper(int(chunk_size), True) if(use_autocrop == True) else lambda audio: audio
 
     # make request
     request = Request(
@@ -140,8 +143,22 @@ def generate_audio(batch_size, model, mode,use_autocast, crop_offset, device_acc
         
         seed=int(seed),
         batch_size=int(batch_size),
-        audio_source=load_input(audio_source),
-        audio_target=load_input(audio_target),        
+
+        audio_source=autocrop(
+            load_audio(
+                device_accelerator,
+                audio_source,
+                sample_rate
+            )
+        )if(audio_source != None) else None, # FIX FOR INTERPOLATIONS
+        audio_target=autocrop(
+            load_audio(
+                device_accelerator,
+                audio_target,
+                sample_rate
+            )
+        )if(audio_target != None) else None,
+
         mask=torch.load(mask) if(mask != None) else None,
         
         noise_level=noise_level,
@@ -155,7 +172,11 @@ def generate_audio(batch_size, model, mode,use_autocast, crop_offset, device_acc
         sampler_args={'use_tqdm': True},
         
         scheduler_type=scheduler_type,
-        scheduler_args={}
+        scheduler_args={
+        'sigma_min': float(sigma_min),
+        'sigma_max': float(sigma_max),
+        'rho': float(rho)
+        }
     )
 
     # process request
@@ -179,22 +200,23 @@ def main():
             with gr.Column():
                 gr.Markdown("Sample Diffusion")
                 models = load_models()
+                modes = [x for x in RequestType._member_names_ if x != "Inpainting"] # no inpainting yet
                 with gr.Column(variant='panel'):
                     currmodel_comp = gr.components.Dropdown(models, label="Model Checkpoint", value=models[0])
                     # refresh_models = gr.Button(value=refresh_symbol, variant='tool')
                     # refresh_models.style(full_width=False)
                     # refresh_models.click(refresh_all_models, currmodel_comp, currmodel_comp)
-                    mode_comp = gr.components.Radio(RequestType._member_names_, label="Mode of Operation", value="Generation")
+                    mode_comp = gr.components.Radio(modes, label="Mode of Operation", value="Generation")
                     generate_btn = gr.Button(value='Generate Samples', label="Generate", variant='primary')
                 with gr.Tab('General Settings'):
                     batch_size_comp = gr.components.Slider(label="Batch Size", value=1, maximum=max_audioboxes, minimum=1, step=1)
                     gen_components = [
                         gr.components.Checkbox(label="Use Autocast", value=True),
-                        gr.components.Number(label="Crop Offset", value=0),
+                        gr.components.Checkbox(label="Use Autocrop", value=True),
                         gr.components.Radio(device_list, label="Device Accelerator", value=recc_device),
                         gr.components.Radio(device_list, label="Device Offload", value=recc_device),
                         gr.components.Number(label="Sample Rate", value=48000),
-                        gr.components.Number(label="Chunk Size", value=65536),
+                        gr.components.Slider(label="Chunk Size", value=65536, maximum=2097152, minimum=32768, step=32768),
                         gr.components.Number(label="Seed", value=-1),
                         gr.components.Checkbox(label="Tame", value=True)
                         ]
@@ -215,8 +237,11 @@ def main():
                         sampler_components = [  
                         #extra settings
                         gr.components.Slider(label="Steps", value=50, maximum=250, minimum=10),
-                        gr.components.Radio(SamplerType._member_names_, label="Sampler", value="IPLMS"),
-                        gr.components.Radio(SchedulerType._member_names_, label="Schedule", value="CrashSchedule"),
+                        gr.components.Number(label="Sigma Min", value=0.1),
+                        gr.components.Number(label="Sigma Max", value=50.0),
+                        gr.components.Number(label="Rho", value=1.0),
+                        gr.components.Radio(SamplerType._member_names_, label="Sampler", value="V_IPLMS"),
+                        gr.components.Radio(SchedulerType._member_names_, label="Schedule", value="V_CRASH"),
                         ]
             with gr.Column():
                 audioboxes = []

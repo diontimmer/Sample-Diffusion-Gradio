@@ -66,7 +66,8 @@ def run_pip(args, desc=None):
 
 SKIP_INSTALL = False
 
-torch_command = "pip install torch==1.13.1+cu117 torchaudio --extra-index-url https://download.pytorch.org/whl/cu117" if platform != 'win32' else 'pip install torch torchaudio'
+
+torch_command = "pip install torch torchaudio --index-url https://download.pytorch.org/whl/cu118" if platform == 'win32' else 'pip install torch torchaudio'
 main_script_path = "app"
 pre_torch_packages = []
 post_torch_packages = [
@@ -75,10 +76,16 @@ post_torch_packages = [
                         'black', 
                         'diffusers',  
                         'tqdm',
+                        'v-diffusion-pytorch',
+                        'k-diffusion',
+                        'audio_diffusion_pytorch==0.0.96'
                         ]
 
 aliases = {
-    "PySoundFile": 'soundfile'
+    "PySoundFile": 'soundfile',
+    "v-diffusion-pytorch": 'diffusion',
+    "k-diffusion": 'k_diffusion',
+    "audio_diffusion_pytorch==0.0.96": 'audio_diffusion_pytorch'
 }
 
 prGreen('Starting launch script...')
@@ -98,6 +105,7 @@ if __name__ == "__main__":
 
         # TORCH INSTALL
         if not is_installed("torch") and torch_command is not None:
+            print(torch_command)
             run(f'"{python}" -m {torch_command}', "Installing torch.", "Couldn't install torch", live=True)
         
         # post torch packages
