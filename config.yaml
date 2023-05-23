@@ -1,0 +1,2 @@
+MODEL_FOLDER: models
+device_accelerator: cuda
